@@ -9,7 +9,6 @@ def run_command(command, password=None):
     """Run a shell command, optionally with sudo password, return output and exit code."""
     try:
         if password and command.strip().startswith("sudo "):
-            # Remove 'sudo ' prefix and add password input
             cmd = command.strip()[5:]
             command = f"echo {password} | sudo -S {cmd}"
         proc = subprocess.run(command, shell=True, capture_output=True, text=True)
@@ -21,19 +20,13 @@ def run_command(command, password=None):
 def stream_linpeas():
     """Stream LinPEAS output live and save to 'results_linpeas.txt'."""
     print("\n🌐 Starting LinPEAS (requires network)...")
-    # Construct the command to download and execute LinPEAS
     bash_cmd = "curl -sL https://github.com/peass-ng/PEASS-ng/releases/latest/download/linpeas.sh | bash"
     proc = subprocess.Popen(["bash", "-c", bash_cmd], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    # Open output file
     with open('results_linpeas.txt', 'w') as outfile:
-        # Stream lines
         for line in proc.stdout:
-            # Print to terminal
             sys.stdout.write(line)
-            # Write to file
             outfile.write(line)
     proc.wait()
-    # Report status
     if proc.returncode == 0:
         print(f"\n[✔] LinPEAS completed successfully with exit code {proc.returncode}.")
         print("[✔] Full output saved to 'results_linpeas.txt'.")
@@ -69,7 +62,6 @@ def check_admin_rights(password=None):
     print("[⚠] User in sudo group" if out == "YES" else "[✔] Not in sudo group")
     out, _ = run_command("sudo -l 2>/dev/null | grep '(ALL)'", password)
     print("[⚠] Has passwordless sudo" if out else "[✔] No passwordless sudo")
-    # Check if root login enabled (shadow entry not locked)
     out, _ = run_command(r"grep '^root:' /etc/shadow | grep -q ':[*!]' && echo NO || echo YES")
     print("[⚠] Root login allowed" if out == "YES" else "[✔] Root login disabled/locked")
 
@@ -96,6 +88,59 @@ def check_writable_files(password=None):
     print("\n🔎 Checking world-writable files...")
     out, _ = run_command("find /etc -type f -perm -o=w 2>/dev/null", password)
     print(out if out else "[✔] No world-writable critical files.")
+
+
+def check_ssh_hardening():
+    print("\n🔎 Checking SSH hardening...")
+    checks = {
+        'Service active': "systemctl is-active sshd && echo ACTIVE || echo INACTIVE",
+        'PasswordAuthentication no': "grep -E '^PasswordAuthentication no' /etc/ssh/sshd_config",
+        'PubkeyAuthentication yes': "grep -E '^PubkeyAuthentication yes' /etc/ssh/sshd_config",
+        'PermitRootLogin no': "grep -E '^PermitRootLogin no' /etc/ssh/sshd_config",
+        'MaxAuthTries <=3': "grep -E '^MaxAuthTries [0-3]+' /etc/ssh/sshd_config"
+    }
+    for desc, cmd in checks.items():
+        out, _ = run_command(cmd)
+        print(f"[✔] {desc}" if out else f"[✘] {desc}")
+
+
+def check_fail2ban():
+    print("\n🔎 Checking Fail2Ban status...")
+    out, _ = run_command("systemctl is-active fail2ban && echo ACTIVE || echo INACTIVE")
+    print("[✔] Fail2Ban active" if out == "ACTIVE" else "[✘] Fail2Ban inactive or not installed")
+
+
+def check_vnc_hardening():
+    print("\n🔎 Checking VNC hardening...")
+    # Common VNC services
+    services = ['vncserver', 'x11vnc']
+    for svc in services:
+        out, _ = run_command(f"systemctl is-active {svc} && echo ACTIVE || echo INACTIVE")
+        print(f"{svc}: {'Active' if out=='ACTIVE' else 'Inactive or not installed'}")
+    # No universal VNC config, could add manual checks per implementation
+
+
+def check_webserver_hardening():
+    print("\n🔎 Checking Webserver hardening...")
+    # Apache
+    out, _ = run_command("systemctl is-active apache2 && echo ACTIVE || echo INACTIVE")
+    if out == 'ACTIVE':
+        confs, _ = run_command("grep -R 'Options' /etc/apache2/sites-enabled | grep -v '-Indexes'")
+        print("[✘] Apache directory listing enabled" if confs else "[✔] Apache directory listing disabled")
+    # Nginx
+    out, _ = run_command("systemctl is-active nginx && echo ACTIVE || echo INACTIVE")
+    if out == 'ACTIVE':
+        confs, _ = run_command("grep -R 'autoindex on' /etc/nginx/sites-enabled")
+        print("[✘] Nginx autoindex enabled" if confs else "[✔] Nginx autoindex disabled")
+
+
+def check_unwanted_services():
+    print("\n🔎 Checking for unwanted services...")
+    # List running services, filter to common services list
+    services = ['ftp', 'telnet', 'rsh', 'rsync', 'rpcbind']
+    out, _ = run_command("systemctl list-units --type=service --state=running")
+    for svc in services:
+        print(f"{svc}: {'Running' if svc in out else 'Not running'}")
 
 
 def check_kernel_version():
@@ -154,6 +199,11 @@ if __name__ == '__main__':
     check_weak_sudo_rules(args.password)
     check_cron_jobs(args.password)
     check_writable_files(args.password)
+    check_ssh_hardening()
+    check_fail2ban()
+    check_vnc_hardening()
+    check_webserver_hardening()
+    check_unwanted_services()
     kv = check_kernel_version()
     check_version(get_output("sudo --version | head -n1"), "1.9.17p1", "Sudo (CVE-2025-32462/63)")
     if args.exploit:

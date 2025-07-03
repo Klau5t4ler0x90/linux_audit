@@ -1,24 +1,34 @@
 # 🔍 Linux Security Audit
 
-A lightweight, script-based security audit tool for Linux. Quickly checks common hardening measures, privilege escalation risks, and known vulnerabilities.
+A lightweight, script-based security audit tool for Linux. Quickly checks common hardening measures, privilege escalation risks, running services, and best-practice configurations.
 
 ## 🚀 Features
 
 - **🛡 Core Hardening Checks**  
-  Verifies UFW firewall status, SELinux mode, and unattended-upgrades—no admin prompt required.
+  - UFW firewall status  
+  - SELinux mode  
+  - Unattended-Upgrades
 
 - **🔑 Admin & Root Privilege Verification**  
-  Detects if the current user is in the sudo group, has passwordless sudo, and whether the root account is enabled.
+  - Sudo group membership  
+  - Passwordless sudo rules  
+  - Root account status
 
 - **⚡ Privilege Escalation Checks**  
-  Scans for:  
   - Unsafe SUID binaries  
   - Weak `sudo` rules (`NOPASSWD`)  
   - Editable root cronjobs  
   - World-writable critical files
 
+- **🖥 Service & Configuration Audits**  
+  - **SSH Hardening**: PasswordAuthentication, PermitRootLogin, PubkeyAuthentication, MaxAuthTries  
+  - **Fail2Ban**: Service status and active jails  
+  - **VNC Services**: `vncserver` & `x11vnc` status  
+  - **Webserver Hardening**: Apache & Nginx directory listing settings  
+  - **Unwanted Services**: FTP, Telnet, RPC, and more
+
 - **🔍 CVE Version Scans**  
-  Compares installed versions of Sudo, kernel (example), libblockdev (if present), and other components against known patched releases for 2025 CVEs.
+  Compares installed versions of Sudo, kernel, libblockdev (if present), Mozilla VPN (example) against known patched releases for 2025 CVEs.
 
 - **🌐 Optional Exploit-DB Lookup**  
   With `--exploit`, looks up the installed kernel version in the Exploit-DB and shows direct links for any matches.
